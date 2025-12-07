@@ -1,0 +1,85 @@
+import cv2
+import mediapipe as mp
+import pyautogui
+import time
+
+# Initialize camera and face mesh
+cam = cv2.VideoCapture(0)
+cam.set(3, 1280)  # Set camera width
+cam.set(4, 720)   # Set camera height
+
+face_mesh = mp.solutions.face_mesh.FaceMesh(refine_landmarks=True)
+
+# Get screen size
+screen_w, screen_h = 1600, 900
+
+# Optional smoothing (reduces jitter)
+last_x, last_y = None, None
+smoothing_factor = 0.6  # 0 = no smoothing, 1 = very smooth (less responsive)
+
+# Last blink time (to avoid double-clicks)
+last_click_time = time.time()
+
+def smooth_cursor(x, y):
+    global last_x, last_y
+    if last_x is None or last_y is None:
+        last_x, last_y = x, y
+    smoothed_x = last_x + smoothing_factor * (x - last_x)
+    smoothed_y = last_y + smoothing_factor * (y - last_y)
+    last_x, last_y = smoothed_x, smoothed_y
+    return smoothed_x, smoothed_y
+
+while True:
+    _, frame = cam.read()
+    frame = cv2.flip(frame, 1)
+    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    output = face_mesh.process(rgb_frame)
+
+    landmark_points = output.multi_face_landmarks
+    frame_h, frame_w, _ = frame.shape
+
+    if landmark_points:
+        landmarks = landmark_points[0].landmark
+
+        # Track the right eye (landmarks 474 and 475 for eye corner and center)
+        right_eye_landmark = landmarks[474]  # right eye iris center
+
+        x = int(right_eye_landmark.x * frame_w)
+        y = int(right_eye_landmark.y * frame_h)
+        cv2.circle(frame, (x, y), 5, (0, 255, 0), -1)
+
+        # Map to screen coordinates with improved scaling
+        screen_x = int((right_eye_landmark.x) * screen_w * 1.2 - 0.1 * screen_w)  # Expand range
+        screen_y = int((right_eye_landmark.y) * screen_h * 1.2 - 0.1 * screen_h)
+
+        # Smooth the cursor for better control
+        screen_x, screen_y = smooth_cursor(screen_x, screen_y)
+
+        # Keep cursor within screen bounds
+        screen_x = max(0, min(screen_w - 1, screen_x))
+        screen_y = max(0, min(screen_h - 1, screen_y))
+
+        pyautogui.moveTo(screen_x, screen_y)
+
+        # Blink detection for clicking (using upper eyelid and lower eyelid)
+        left_eye_upper = landmarks[145]
+        left_eye_lower = landmarks[159]
+
+        cv2.circle(frame, (int(left_eye_upper.x * frame_w), int(left_eye_upper.y * frame_h)), 3, (0, 255, 255), -1)
+        cv2.circle(frame, (int(left_eye_lower.x * frame_w), int(left_eye_lower.y * frame_h)), 3, (0, 255, 255), -1)
+
+        # Detect blink (eyelid close distance)
+        eye_distance = abs(left_eye_upper.y - left_eye_lower.y)
+
+        if eye_distance < 0.01:
+            if time.time() - last_click_time > 1:  # 1 second cooldown between clicks
+                pyautogui.click()
+                last_click_time = time.time()
+
+    cv2.imshow('Eye Controlled Mouse', frame)
+
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cam.release()
+cv2.destroyAllWindows()
