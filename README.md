@@ -1,2 +1,2 @@
 # eye-controlled-mouse-using-python
-this project designed to allow human eyes to control pc mouse using their eyes 
+Enhancing human-computer interaction through intuitive and accessible methods has led to the development of eye-controlled mouse systems. This project focuses on designing, developing, and deploying an innovative eye-tracking-based mouse control system that enables users to navigate and interact with a computer using only their eye movements. The system is particularly beneficial for individuals with mobility impairments and improves touch less interaction in environments where hygiene is a priority.
